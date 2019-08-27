@@ -54,6 +54,7 @@ func (w *Worker) send(s *StoredRequest) {
 	}
 	res, err := w.client.Do(req)
 	if err != nil {
+		log.Printf("Could not get response: %v", err)
 		w.reschedule(s)
 		return
 	}
@@ -81,7 +82,7 @@ func (w *Worker) reschedule(s *StoredRequest) {
 	rescheduled := &StoredRequest{
 		UID: s.UID,
 		// TODO: Use a parameterized exponential backoff
-		DeliveryTime: s.DeliveryTime + int64(time.Second*10),
+		DeliveryTime: time.Now().Add(10 * time.Second).UnixNano(),
 		Path:         s.Path,
 		Method:       s.Method,
 		Scheduled:    false,
