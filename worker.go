@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -52,6 +54,8 @@ func (w *Worker) send(s *StoredRequest) {
 	if err != nil {
 		log.Fatalf("Could not create request: %v", s)
 	}
+	req.Header = s.Headers
+	req.Body = ioutil.NopCloser(bytes.NewReader(s.Body))
 	res, err := w.client.Do(req)
 	if err != nil {
 		log.Printf("Could not get response: %v", err)
@@ -85,6 +89,8 @@ func (w *Worker) reschedule(s *StoredRequest) {
 		DeliveryTime: time.Now().Add(10 * time.Second).UnixNano(),
 		Path:         s.Path,
 		Method:       s.Method,
+		Body:         s.Body,
+		Headers:      s.Headers,
 		Scheduled:    false,
 	}
 
