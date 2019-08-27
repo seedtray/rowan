@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -54,9 +55,17 @@ func (w *Worker) send(s *StoredRequest) {
 	}
 	res, err := w.client.Do(req)
 	if err != nil {
+		log.Printf("Could not send request: %v", err)
+		// TODO: How should we report these errors?
+		OutboundHTTPRequests.WithLabelValues("400").Inc()
 		w.reschedule(s)
 		return
 	}
+
+	latency := time.Since(time.Unix(0, s.DeliveryTime))
+	statusLabel := strconv.Itoa(res.StatusCode)
+	OutboundHTTPRequests.WithLabelValues(statusLabel).Inc()
+	OutboundHTTPLatencies.WithLabelValues(statusLabel).Observe(latency.Seconds())
 	if res.StatusCode != 200 {
 		log.Printf("Bad response. Request: %v. Status:: %d", s, res.StatusCode)
 		w.reschedule(s)
@@ -66,6 +75,7 @@ func (w *Worker) send(s *StoredRequest) {
 	if err != nil {
 		log.Fatalf("Could not delete stored request: %v", err)
 	}
+
 }
 
 func (w *Worker) reschedule(s *StoredRequest) {

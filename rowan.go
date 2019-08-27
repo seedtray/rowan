@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -19,9 +20,12 @@ func main() {
 	// All service flags.
 	baseURL := flag.String("base_url", "http://example.com", "")
 	maxConcurrentRequests := flag.Uint("max_concurrent_requests", 10, "")
-	port := flag.Int("port", 8080, "")
+	inboundPort := flag.Int("inbound_port", 8080, "")
+	metricsPort := flag.Int("metrics_port", 8081, "")
 
 	flag.Parse()
+
+	go serveMetrics(*metricsPort)
 
 	server, err := newServer(*maxConcurrentRequests, *baseURL)
 	if err != nil {
@@ -29,7 +33,7 @@ func main() {
 	}
 
 	s := &http.Server{
-		Addr:           fmt.Sprintf(":%d", *port),
+		Addr:           fmt.Sprintf(":%d", *inboundPort),
 		Handler:        server,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
@@ -63,7 +67,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 		if err := s.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatal(err)
+			log.Print(err)
 		}
 	}()
 
@@ -99,7 +103,8 @@ func newServer(maxConcurrentRequests uint, baseURL string) (*Server, error) {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	uid := make([]byte, 8)
 	if _, err := rand.Read(uid); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Could not generate UID: %v", err)
+		s.writeError(w)
 		return
 	}
 	sr := &StoredRequest{
@@ -113,6 +118,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//TODO: Add support for body and headers.
 	}
 	if err := s.store.Put(sr); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("Could not persist request: %v", err)
+		s.writeError(w)
+		return
 	}
+
+	InboundHTTPRequests.WithLabelValues("200").Inc()
+}
+
+func (s *Server) writeError(w http.ResponseWriter) {
+	status := http.StatusInternalServerError
+	w.WriteHeader(status)
+	InboundHTTPRequests.WithLabelValues(strconv.Itoa(status)).Inc()
 }
