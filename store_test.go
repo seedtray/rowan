@@ -44,6 +44,8 @@ func TestPut(t *testing.T) {
 		UID:          []byte{1},
 		DeliveryTime: 1,
 		Path:         "/foo",
+		Headers:      map[string][]string{"X-Foo": []string{"Bar"}},
+		Body:         []byte("Body content"),
 		Method:       "GET",
 	})
 	if err != nil {
@@ -126,7 +128,7 @@ func TestNext(t *testing.T) {
 		DeliveryTime: 223,
 		Path:         "bar",
 		Method:       "POST",
-		Scheduled:		true,
+		Scheduled:    true,
 	}
 
 	req3 := &StoredRequest{

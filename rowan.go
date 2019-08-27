@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
@@ -99,15 +100,26 @@ func newServer(maxConcurrentRequests uint, baseURL string) (*Server, error) {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	uid := make([]byte, 8)
 	if _, err := rand.Read(uid); err != nil {
+		log.Printf("Could not generate random UID: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		log.Printf("Could not read request body: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	sr := &StoredRequest{
 		UID: uid,
 		// TODO: Allow custom delivery time from header.
 		DeliveryTime: time.Now().UnixNano(),
 		Path:         r.URL.Path,
 		Method:       r.Method,
+		Headers:      r.Header,
+		Body:         body,
 		// TODO: Read from header.
 		TTL: 3,
 		//TODO: Add support for body and headers.
