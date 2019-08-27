@@ -19,12 +19,13 @@ import (
 func main() {
 	// All service flags.
 	baseURL := flag.String("base_url", "http://example.com", "")
+	clientTimeout := flag.Duration("client_timeout", time.Duration(10 * time.Second), "")
 	maxConcurrentRequests := flag.Uint("max_concurrent_requests", 10, "")
 	port := flag.Int("port", 8080, "")
 
 	flag.Parse()
 
-	server, err := newServer(*maxConcurrentRequests, *baseURL)
+	server, err := newServer(*maxConcurrentRequests, *baseURL, *clientTimeout)
 	if err != nil {
 		log.Fatalf("Could not initialize server: %v", err)
 	}
@@ -79,7 +80,7 @@ type Server struct {
 	serverURL             *url.URL
 }
 
-func newServer(maxConcurrentRequests uint, baseURL string) (*Server, error) {
+func newServer(maxConcurrentRequests uint, baseURL string, clientTimeout time.Duration) (*Server, error) {
 	s, err := newBoltRequestStore("requests.db")
 	if err != nil {
 		return nil, err
@@ -88,7 +89,9 @@ func newServer(maxConcurrentRequests uint, baseURL string) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	httpClient := http.DefaultClient
+	httpClient := &http.Client{
+		Timeout: clientTimeout,
+	}
 	return &Server{
 		store:                 s,
 		maxConcurrentRequests: maxConcurrentRequests,
