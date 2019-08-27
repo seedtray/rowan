@@ -69,15 +69,6 @@ func (w *Worker) send(s *StoredRequest) {
 }
 
 func (w *Worker) reschedule(s *StoredRequest) {
-	rescheduled := &StoredRequest{
-		UID: s.UID,
-		// TODO: Use a parameterized exponential backoff
-		DeliveryTime: s.DeliveryTime + int64(time.Second*10),
-		Path:         s.Path,
-		Method:       s.Method,
-		Scheduled:    false,
-	}
-
 	if s.TTL == 1 {
 		log.Printf("Request expired: %v\n", s)
 		err := w.store.Delete(s)
@@ -87,7 +78,16 @@ func (w *Worker) reschedule(s *StoredRequest) {
 		return
 	}
 
-	if s.TTL > 0 {
+	rescheduled := &StoredRequest{
+		UID: s.UID,
+		// TODO: Use a parameterized exponential backoff
+		DeliveryTime: s.DeliveryTime + int64(time.Second*10),
+		Path:         s.Path,
+		Method:       s.Method,
+		Scheduled:    false,
+	}
+
+	if s.TTL > 1 {
 		rescheduled.TTL = s.TTL - 1
 	}
 

@@ -77,6 +77,9 @@ func (s *BoltRequestStore) Next(n int) ([]*StoredRequest, error) {
 			if err != nil {
 				return err
 			}
+			if sr.Scheduled {
+				continue
+			}
 			r = append(r, &sr)
 			i = i + 1
 		}

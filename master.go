@@ -48,12 +48,12 @@ func (m *Master) run(ctx context.Context) {
 			wg.Wait()
 			return
 		default:
-			m.scheduleNext()
+			m.schedule()
 		}
 	}
 }
 
-func (m *Master) scheduleNext() {
+func (m *Master) schedule() {
 	next, err := m.store.Next(len(m.workers) * 2)
 	if err != nil {
 		log.Fatalf("Could not read from store: %v", err)
@@ -63,9 +63,6 @@ func (m *Master) scheduleNext() {
 	for _, r := range next {
 		if r.DeliveryTime > now {
 			break
-		}
-		if r.Scheduled {
-			continue
 		}
 		r.Scheduled = true
 		m.store.Put(r)

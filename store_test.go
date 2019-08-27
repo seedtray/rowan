@@ -126,6 +126,7 @@ func TestNext(t *testing.T) {
 		DeliveryTime: 223,
 		Path:         "bar",
 		Method:       "POST",
+		Scheduled:		true,
 	}
 
 	req3 := &StoredRequest{
@@ -150,7 +151,7 @@ func TestNext(t *testing.T) {
 		t.Errorf("got requests %v, want %v", got, want)
 	}
 
-	want = []*StoredRequest{req1, req2}
+	want = []*StoredRequest{req1, req3}
 	got, err = s.db.Next(2)
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +160,7 @@ func TestNext(t *testing.T) {
 		t.Errorf("got requests %v, want %v", got, want)
 	}
 
-	want = []*StoredRequest{req1, req2, req3}
+	want = []*StoredRequest{req1, req3}
 	got, err = s.db.Next(3)
 	if err != nil {
 		t.Fatal(err)
