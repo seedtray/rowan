@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -19,7 +20,7 @@ import (
 func main() {
 	// All service flags.
 	baseURL := flag.String("base_url", "http://example.com", "")
-	clientTimeout := flag.Duration("client_timeout", time.Duration(10 * time.Second), "")
+	clientTimeout := flag.Duration("client_timeout", time.Duration(10*time.Second), "")
 	maxConcurrentRequests := flag.Uint("max_concurrent_requests", 10, "")
 	port := flag.Int("port", 8080, "")
 
@@ -116,18 +117,43 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sr := &StoredRequest{
-		UID: uid,
-		// TODO: Allow custom delivery time from header.
+		UID:          uid,
 		DeliveryTime: time.Now().UnixNano(),
 		Path:         r.URL.Path,
 		Method:       r.Method,
 		Headers:      r.Header,
 		Body:         body,
-		// TODO: Read from header.
-		TTL: 3,
-		//TODO: Add support for body and headers.
 	}
+
+	ttlHeader := r.Header.Get("X-Rowan-Ttl")
+	if ttlHeader != "" {
+		ttl, err := strconv.ParseInt(ttlHeader, 10, 64)
+		if err != nil {
+			writeResponse(w, http.StatusBadRequest, "Could not parse X-Rowan-Ttl header")
+			return
+		}
+		sr.TTL = ttl
+	}
+
+	deliveryTimeHeader := r.Header.Get("X-Rowan-Deliverytime")
+	if deliveryTimeHeader != "" {
+		deliveryTime, err := time.Parse(time.RFC3339, deliveryTimeHeader)
+		if err != nil {
+			writeResponse(w, http.StatusBadRequest, "Could not parse X-Rowan-Deliverytime header")
+			return
+		}
+		sr.DeliveryTime = deliveryTime.UnixNano()
+	}
+
 	if err := s.store.Put(sr); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		writeResponse(w, http.StatusInternalServerError, "Internal Server Error")
+	}
+}
+
+func writeResponse(w http.ResponseWriter, status int, msg string) {
+	w.WriteHeader(status)
+	if _, err := w.Write([]byte(msg)); err != nil {
+		log.Printf("Could not write response body: %v", err)
+		return
 	}
 }
