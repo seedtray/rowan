@@ -17,15 +17,17 @@ type StoredRequest struct {
 	// The HTTP path to use when delibery this request.
 	Path string
 	// The HTTP method to use.
-	Method  string
+	Method string
 	// The HTTP headers to propagate.
 	Headers map[string][]string
 	// The request body to include.
-	Body    []byte
+	Body []byte
 	// Whether this request is being processed by a worker or not.
 	Scheduled bool
 	// How many times should I try to deliver this request before dropping it?
-	TTL int
+	TTL int64
+	// The number of times this task has been retried. For the first attempt, this value is 0.
+	Retry int64
 }
 
 type RequestStore interface {

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -56,6 +57,10 @@ func (w *Worker) send(s *StoredRequest) {
 	}
 	req.Header = s.Headers
 	req.Body = ioutil.NopCloser(bytes.NewReader(s.Body))
+	req.Header.Set("X-Rowan-Retrycount", strconv.FormatInt(s.Retry, 10))
+	req.Header.Set("X-Rowan-Ttl", strconv.FormatInt(s.TTL, 10))
+	deliveryTimeHeader := time.Unix(0, s.DeliveryTime).Format(time.RFC3339)
+	req.Header.Set("X-Rowan-Deliverytime", deliveryTimeHeader)
 	res, err := w.client.Do(req)
 	if err != nil {
 		log.Printf("Could not get response: %v", err)
@@ -92,6 +97,7 @@ func (w *Worker) reschedule(s *StoredRequest) {
 		Body:         s.Body,
 		Headers:      s.Headers,
 		Scheduled:    false,
+		Retry:        s.Retry + 1,
 	}
 
 	if s.TTL > 1 {
