@@ -22,17 +22,20 @@ func main() {
 	baseURL := flag.String("base_url", "http://example.com", "")
 	clientTimeout := flag.Duration("client_timeout", time.Duration(10*time.Second), "")
 	maxConcurrentRequests := flag.Uint("max_concurrent_requests", 10, "")
-	port := flag.Int("port", 8080, "")
+	inboundPort := flag.Int("inbound_port", 8080, "")
+	metricsPort := flag.Int("metrics_port", 8081, "")
 
 	flag.Parse()
 
+	go serveMetrics(*metricsPort)
 	server, err := newServer(*maxConcurrentRequests, *baseURL, *clientTimeout)
+
 	if err != nil {
 		log.Fatalf("Could not initialize server: %v", err)
 	}
 
 	s := &http.Server{
-		Addr:           fmt.Sprintf(":%d", *port),
+		Addr:           fmt.Sprintf(":%d", *inboundPort),
 		Handler:        server,
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
@@ -66,7 +69,7 @@ func main() {
 	go func() {
 		defer wg.Done()
 		if err := s.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatal(err)
+			log.Print(err)
 		}
 	}()
 
@@ -154,6 +157,9 @@ func writeResponse(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
 	if _, err := w.Write([]byte(msg)); err != nil {
 		log.Printf("Could not write response body: %v", err)
+		InboundHTTPRequests.WithLabelValues("500").Inc()
 		return
 	}
+
+	InboundHTTPRequests.WithLabelValues(strconv.Itoa(status)).Inc()
 }

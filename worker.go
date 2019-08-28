@@ -55,18 +55,23 @@ func (w *Worker) send(s *StoredRequest) {
 	if err != nil {
 		log.Fatalf("Could not create request: %v", s)
 	}
+
+	deliveryTime := time.Unix(0, s.DeliveryTime)
+
 	req.Header = s.Headers
 	req.Body = ioutil.NopCloser(bytes.NewReader(s.Body))
 	req.Header.Set("X-Rowan-Retrycount", strconv.FormatInt(s.Retry, 10))
 	req.Header.Set("X-Rowan-Ttl", strconv.FormatInt(s.TTL, 10))
-	deliveryTimeHeader := time.Unix(0, s.DeliveryTime).Format(time.RFC3339)
-	req.Header.Set("X-Rowan-Deliverytime", deliveryTimeHeader)
+	req.Header.Set("X-Rowan-Deliverytime", deliveryTime.Format(time.RFC3339))
 	res, err := w.client.Do(req)
 	if err != nil {
 		log.Printf("Could not get response: %v", err)
+		reportMetrics(400, deliveryTime)
 		w.reschedule(s)
 		return
 	}
+
+	reportMetrics(res.StatusCode, deliveryTime)
 	if res.StatusCode != 200 {
 		log.Printf("Bad response. Request: %v. Status:: %d", s, res.StatusCode)
 		w.reschedule(s)
@@ -76,6 +81,12 @@ func (w *Worker) send(s *StoredRequest) {
 	if err != nil {
 		log.Fatalf("Could not delete stored request: %v", err)
 	}
+}
+
+func reportMetrics(status int, deliveryTime time.Time) {
+	statusLabel := strconv.Itoa(status)
+	OutboundHTTPRequests.WithLabelValues(statusLabel).Inc()
+	OutboundHTTPLatencies.WithLabelValues(statusLabel).Observe(time.Since(deliveryTime).Seconds())
 }
 
 func (w *Worker) reschedule(s *StoredRequest) {
