@@ -24,11 +24,16 @@ func main() {
 	maxConcurrentRequests := flag.Uint("max_concurrent_requests", 10, "")
 	inboundPort := flag.Int("inbound_port", 8080, "")
 	metricsPort := flag.Int("metrics_port", 8081, "")
+	storagePath := flag.String("storage_path", "data.db", "")
 
 	flag.Parse()
 
 	go serveMetrics(*metricsPort)
-	server, err := newServer(*maxConcurrentRequests, *baseURL, *clientTimeout)
+	server, err := newServer(
+		*maxConcurrentRequests,
+		*baseURL,
+		*clientTimeout,
+		*storagePath)
 
 	if err != nil {
 		log.Fatalf("Could not initialize server: %v", err)
@@ -84,8 +89,11 @@ type Server struct {
 	serverURL             *url.URL
 }
 
-func newServer(maxConcurrentRequests uint, baseURL string, clientTimeout time.Duration) (*Server, error) {
-	s, err := newBoltRequestStore("requests.db")
+func newServer(maxConcurrentRequests uint,
+	baseURL string,
+	clientTimeout time.Duration,
+	storagePath string) (*Server, error) {
+	s, err := newBoltRequestStore(storagePath)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +140,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if ttlHeader != "" {
 		ttl, err := strconv.ParseInt(ttlHeader, 10, 64)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, "Could not parse X-Rowan-Ttl header")
+			writeResponse(w,
+				http.StatusBadRequest,
+				"Could not parse X-Rowan-Ttl header")
 			return
 		}
 		sr.TTL = ttl
@@ -142,14 +152,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if deliveryTimeHeader != "" {
 		deliveryTime, err := time.Parse(time.RFC3339, deliveryTimeHeader)
 		if err != nil {
-			writeResponse(w, http.StatusBadRequest, "Could not parse X-Rowan-Deliverytime header")
+			writeResponse(w,
+				http.StatusBadRequest,
+				"Could not parse X-Rowan-Deliverytime header")
 			return
 		}
 		sr.DeliveryTime = deliveryTime.UnixNano()
 	}
 
 	if err := s.store.Put(sr); err != nil {
-		writeResponse(w, http.StatusInternalServerError, "Internal Server Error")
+		writeResponse(w,
+			http.StatusInternalServerError,
+			"Internal Server Error")
 	}
 }
 
